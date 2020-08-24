@@ -13,12 +13,16 @@ const routes = [{
 		path: '/home',
 		name: 'Home',
 		redirect: '/welcome',
-		component: () =>
-			import('../views/Home'),
+		component: () => import('../views/Home'),
 		children: [{
 				path: '/welcome',
 				component: () =>
 					import('../components/Welcome')
+			},
+			{
+				path: '/dataDisplay',
+				component: () =>
+					import('../components/display/DataDisplay')
 			},
 			{
 				path: '/device',
@@ -41,46 +45,11 @@ const routes = [{
 					import('../components/users/Users')
 			},
 			{
-				path: '/rights',
-				component: () =>
-					import('../components/power/Rights')
-			},
-			{
 				path: '/roles',
 				component: () =>
-					import('../components/power/Roles')
-			},
-			{
-				path: '/categories',
-				component: () =>
-					import('../components/goods/Cate.vue')
-			},
-			{
-				path: '/params',
-				component: () =>
-					import('../components/goods/Params.vue')
-			},
-			{
-				path: '/goods',
-				component: () =>
-					import('../components/goods/List.vue')
-			},
-			{
-				path: '/goods/add',
-				component: () =>
-					import('../components/goods/Add.vue')
-			},
-			{
-				path: '/orders',
-				component: () =>
-					import('../components/order/Order.vue')
-			},
-			{
-				path: '/reports',
-				component: () =>
-					import('../components/report/Report.vue')
+					import('../components/users/Roles')
 			}
-		],
+		]
 	}
 ]
 
@@ -92,8 +61,10 @@ const router = new VueRouter({
 //路由导航守卫
 router.beforeEach((to, from, next) => {
 	if (to.path === '/login') return next()
-	const tokenStr = window.sessionStorage.getItem('token')
-	if (!tokenStr) return next('/login')
+	const tokenStr = window.sessionStorage.getItem('cw.iot.token.currentUser');
+	const lastOperationTime = window.sessionStorage.getItem('cw.iot.token.lastOperateTime');
+	let nowTime = (new Date()).getTime();
+	if (!tokenStr || (nowTime - lastOperationTime > 1800000)) return next('/login')
 	next()
 })
 export default router

@@ -2,10 +2,12 @@
 	<el-container style="height:100vh">
 		<el-header>
 			<div>
-				<img src="../assets/logo.png" alt />
-				<span>IOT平台管理系统</span>
+				<img src="../assets/logo.png"/>
+				<span>IOT平台管理系统 V1.0</span>
 			</div>
-			<el-button type="info" @click="logout">退出</el-button>
+			<div style="float: right;"><span style="margin-right: 20px;">{{ userName }} 您好,欢迎登陆使用</span>
+				<el-button type="info" @click="logout">退出</el-button>
+			</div>
 		</el-header>
 		<el-container>
 			<el-aside :width="isCollapse ? '64px' : '200px'">
@@ -44,6 +46,7 @@ import LeftNav from '../data/leftNav.js';
 export default {
 	data() {
 		return {
+			userName: '',
 			menulist: LeftNav,
 			iconObj: {
 				'125': 'iconfont icon-icon_user',
@@ -51,21 +54,23 @@ export default {
 				'101': 'iconfont icon-shangpin',
 				'102': 'iconfont icon-danju',
 				'145': 'iconfont icon-baobiao',
-				'104': 'iconfont icon-danju',
+				'104': 'iconfont icon-danju'
 			},
 			isCollapse: false
 		};
 	},
 	methods: {
 		logout() {
-			window.sessionStorage.clear;
+			window.sessionStorage.clear()
 			this.$router.push('/login');
 		},
 		toggleCollapse() {
 			this.isCollapse = !this.isCollapse;
 		}
 	},
-	created() {}
+	created() {
+		this.userName = window.sessionStorage.getItem('cw.iot.token.currentUser');
+	}
 };
 </script>
 
