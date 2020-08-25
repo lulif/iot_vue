@@ -8,35 +8,10 @@
 
 		<el-card>
 			<el-row>
-				<el-col><el-button type="primary">添加角色</el-button></el-col>
+				<el-col><el-button type="primary" @click="showSetPermissionDialog(-1)">添加角色</el-button></el-col>
 			</el-row>
 
 			<el-table :data="rolelist" border stripe>
-				<el-table-column type="expand">
-					<template v-slot="scope">
-						<el-row :class="['bd-bottom', 'vcenter', index1 == 0 ? 'bd-top' : '']" v-for="(item1, index1) in scope.row.children" :key="item1.id">
-							<!-- 一级权限 -->
-							<el-col :span="5">
-								<el-tag closable @close="removeRightById(scope.row, item1.id)">{{ item1.authName }}</el-tag>
-								<i class="el-icon-caret-right"></i>
-							</el-col>
-							<!-- 二级权限/三级权限 -->
-							<el-col :span="19">
-								<el-row :class="[index2 == 0 ? '' : 'bd-top', 'vcenter']" v-for="(item2, index2) in item1.children" :key="item2.id">
-									<el-col :span="6">
-										<el-tag closable @close="removeRightById(scope.row, item2.id)" type="success">{{ item2.authName }}</el-tag>
-										<i class="el-icon-caret-right"></i>
-									</el-col>
-									<el-col :span="18">
-										<el-tag closable @close="removeRightById(scope.row, item3.id)" type="warning" v-for="item3 in item2.children" :key="item3.id">
-											{{ item3.authName }}
-										</el-tag>
-									</el-col>
-								</el-row>
-							</el-col>
-						</el-row>
-					</template>
-				</el-table-column>
 				<el-table-column type="index"></el-table-column>
 				<el-table-column prop="roleName" label="角色名称"></el-table-column>
 				<el-table-column prop="remark" label="备注">
@@ -56,19 +31,24 @@
 				</el-table-column>
 				<el-table-column label="操作">
 					<template v-slot="scope">
-						<el-button size="small" type="primary" icon="el-icon-edit" @click="showSetPermissionDialog(scope.row)">编辑</el-button>
+						<el-button size="small" type="primary" icon="el-icon-edit" @click="showSetPermissionDialog(scope.row.id)">编辑</el-button>
 						<el-button size="small" type="danger" icon="el-icon-delete" @click="removeRoleById(scope.row.id)">删除</el-button>
 					</template>
 				</el-table-column>
 			</el-table>
 		</el-card>
 
-		<!-- 分配权限对话框 -->
-		<el-dialog title="分配权限" :visible.sync="setRightDialogVisible" @close="setRightDialogClosed" width="50%">
-			<el-tree :data="permissionlist" :default-checked-keys="defKeys" node-key="id" ref="treeRef" default-expand-all show-checkbox :props="treeProps"></el-tree>
+		<el-dialog :title="dialogTitle" :visible.sync="setPermissionDialogVisible" @close="setPermissionDialogClosed" width="40%">
+			<el-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-width="100px">
+				<el-form-item label="角色名称：" prop="roleName"><el-input v-model="addForm.roleName"></el-input></el-form-item>
+				<el-form-item label="备注：" prop="remark"><el-input v-model="addForm.remark"></el-input></el-form-item>
+				<el-form-item label="权限：">
+					<el-tree :data="permissionlist" ref="treeRef" node-key="id" default-expand-all show-checkbox :props="treeProps"></el-tree>
+				</el-form-item>
+			</el-form>
 			<div slot="footer">
-				<el-button @click="setRightDialogVisible = false">取 消</el-button>
-				<el-button type="primary" @click="allotRights">确 定</el-button>
+				<el-button @click="setPermissionDialogClosed">取 消</el-button>
+				<el-button type="primary" @click="distributionPermission">确 定</el-button>
 			</div>
 		</el-dialog>
 	</div>
@@ -79,14 +59,22 @@ export default {
 	data() {
 		return {
 			rolelist: [],
-			setRightDialogVisible: false,
+			setPermissionDialogVisible: false,
+			addForm: {
+				id: '',
+				roleName: '',
+				remark: ''
+			},
 			permissionlist: [],
 			treeProps: {
-				children: 'children',
-				label: 'authName'
+				children: 'childrens',
+				label: 'permissionName'
 			},
-			defKeys: [],
-			roleId: ''
+			dialogTitle: '添加角色',
+			isUpdate: false,
+			addFormRules: {
+				roleName: [{ required: true, message: '请输入角色名称', trigger: 'blur' }]
+			}
 		};
 	},
 	methods: {
@@ -121,61 +109,74 @@ export default {
 					});
 				});
 		},
-
-		removeRightById(role, rightId) {
-			this.$confirm('此操作将永久删除该文件, 是否继续?', '提示', {
-				confirmButtonText: '确定',
-				cancelButtonText: '取消',
-				type: 'warning'
-			})
-				.then(async () => {
-					const { data } = await this.$http.delete(`roles/${role.id}/rights/${rightId}`);
-					if (data.meta.status !== 200) {
-						return this.$message.error(data.meta.msg);
+		async showSetPermissionDialog(id) {
+			if (id !== -1) {
+				this.isUpdate = true;
+			}
+			const { data } = await this.$http.post('/user/getPermissionList');
+			if (data.code !== 200) {
+				return this.$message.error(data.msg);
+			}
+			this.permissionlist = data.permissionList;
+			this.setPermissionDialogVisible = true;
+			if (this.isUpdate) {
+				this.dialogTitle = '修改角色';
+				await this.getPermissionsByRole(id);
+			} else {
+				const defaultCheckedKeys = [];
+				this.$refs.treeRef.setCheckedKeys(defaultCheckedKeys);
+			}
+		},
+		async getPermissionsByRole(id) {
+			const perLevel = 3;
+			const { data } = await this.$http.post('/user/getPermissionsByRole', this.$qs.stringify({ id, perLevel }));
+			if (data.code !== 200) {
+				return this.$message.error(data.msg);
+			}
+			this.addForm.roleName = data.role.roleName;
+			this.addForm.id = data.role.id;
+			this.addForm.remark = data.role.remark;
+			let checkedKeys = [];
+			data.rolePermissionList.forEach(p => {
+				checkedKeys.push(p.id);
+			});
+			this.$refs.treeRef.setCheckedKeys(checkedKeys);
+		},
+		async distributionPermission() {
+			this.$refs.addFormRef.validate(async valid => {
+				if (!valid) return;
+				const keys = [...this.$refs.treeRef.getCheckedKeys(), ...this.$refs.treeRef.getHalfCheckedKeys()];
+				const ids = keys.join(',');
+				if (!this.isUpdate) {
+					const { data } = await this.$http.post('/user/addRole', this.$qs.stringify({ roleName: this.addForm.roleName, remark: this.addForm.remark, perIds: ids }));
+					if (data.code !== 200) {
+						return this.$message.error(data.msg);
+					} else {
+						this.$message.success('添加角色成功');
 					}
-					this.$message({
-						type: 'success',
-						message: '删除成功!'
-					});
-					role.children = data.data;
-				})
-				.catch(() => {
-					this.$message({
-						type: 'info',
-						message: '已取消删除'
-					});
-				});
+				} else {
+					const { data } = await this.$http.post(
+						'/user/modifyRole',
+						this.$qs.stringify({ roleName: this.addForm.roleName, remark: this.addForm.remark, id: this.addForm.id, perIds: ids })
+					);
+					if (data.code !== 200) {
+						return this.$message.error(data.msg);
+					} else {
+						this.$message.success('修改角色成功');
+					}
+				}
+				this.setPermissionDialogClosed();
+				this.getRoleList();
+			});
 		},
-		async showSetPermissionDialog(role) {
-			this.roleId = role.id;
-			const { data } = await this.$http.get('rights/tree');
-			if (data.meta.status !== 200) {
-				return this.$message.error(data.meta.msg);
-			}
-			this.permissionlist = data.data;
-			this.getLeafKeys(role, this.defKeys);
-			this.setRightDialogVisible = true;
-		},
-		getLeafKeys(node, arr) {
-			if (!node.children) {
-				return arr.push(node.id);
-			}
-			node.children.forEach(item => this.getLeafKeys(item, arr));
-		},
-		setRightDialogClosed() {
-			this.defKeys = [];
-		},
-		async allotRights() {
-			const keys = [...this.$refs.treeRef.getCheckedKeys(), ...this.$refs.treeRef.getHalfCheckedKeys()];
-			console.log(keys);
-			const idStr = keys.join(',');
-			const { data } = await this.$http.post(`roles/${this.roleId}/rights`, { rids: idStr });
-			if (data.meta.status !== 200) {
-				return this.$message.error(data.meta.msg);
-			}
-			this.$message.success('分配权限成功！');
-			this.setRightDialogVisible = false;
-			this.getRoleList();
+		setPermissionDialogClosed() {
+			this.isUpdate = false;
+			this.setPermissionDialogVisible = false;
+			this.dialogTitle = '添加角色';
+			this.addForm.id = '';
+			this.addForm.roleName = '';
+			this.addForm.remark = '';
+			this.permissionlist = [];
 		}
 	},
 	created() {

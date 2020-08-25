@@ -202,7 +202,6 @@ export default {
 			this.addDialogVisible = false;
 			this.isUpdate = false;
 			this.dialogTitle = '添加用户';
-
 			this.$refs.addFormRef.resetFields();
 			this.addForm.userName = '';
 			this.addForm.password = '';
